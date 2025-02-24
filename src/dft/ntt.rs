@@ -1,254 +1,436 @@
-use crate::dft::DFT;
+// Without testing for smaller numbers
+// use crate::dft::DFT;
+// use std::vec::Vec;
 
-fn pow_mod(a: u64, exp: u64, modulus: u64) -> u64 {
-    let mut result = 1u128;
-    let mut a = a as u128 % modulus as u128;
-    let mut exp = exp;
-    let modulus = modulus as u128;
+// /// Goldilocks prime: 2^64 - 2^32 + 1
+// const P: u64 = 0xffffffff00000001;
+
+// const PSI: u64 = 0xabd0a6e8aa3d8a0e;
+
+// /// Reduces a 128-bit number modulo the Goldilocks prime
+// fn reduce(x: u128) -> u64 {
+//     let x_lo = x as u64;
+//     let x_hi = (x >> 64) as u64;
+//     let t = x_lo as u128 + ((x_hi as u128) * (0xffffffffu64 as u128));
+//     let t_lo = t as u64;
+//     let t_hi = (t >> 64) as u64;
+//     let mut result = t_lo.wrapping_add(t_hi.wrapping_mul(0xffffffff));
+//     if result >= P { result = result.wrapping_sub(P); }
+//     if result >= P { result = result.wrapping_sub(P); }
+//     result
+// }
+
+// fn mul_mod(a: u64, b: u64) -> u64 {
+//     reduce((a as u128) * (b as u128))
+// }   
+
+// fn add_mod(a: u64, b: u64) -> u64 {
+//     let sum = a.wrapping_add(b);
+//     if sum >= P { sum.wrapping_sub(P) } else { sum }
+// }
+
+// fn sub_mod(a: u64, b: u64) -> u64 {
+//     if a >= b { a.wrapping_sub(b) } else { a.wrapping_add(P).wrapping_sub(b) }
+// }
+
+// /// Computes a^b mod P using square-and-multiply
+// fn pow_mod(a: u64, b: u64) -> u64 {
+//     let mut result = 1;
+//     let mut base = a;
+//     let mut exp = b;
+//     while exp > 0 {
+//         if exp & 1 == 1 {
+//             result = mul_mod(result, base);
+//         }
+//         base = mul_mod(base, base);
+//         exp >>= 1;
+//     }
+//     result
+// }
+
+// pub struct GoldilocksTable {
+//     twiddle_factors: Vec<Vec<u64>>,     
+//     inv_twiddle_factors: Vec<Vec<u64>>, 
+//     inv_n: Vec<u64>,                    
+// }
+
+// impl GoldilocksTable {
+//     /// table for n = 2^11 to 2^16
+//     pub fn new() -> Self {
+//         let mut twiddle_factors = Vec::new();
+//         let mut inv_twiddle_factors = Vec::new();
+//         let mut inv_n = Vec::new();
+//         for log_n in 11..=16 {
+//             let n = 1 << log_n;
+//             let k = 17 - (log_n + 1);
+//             // ψ_n = ψ^(2^(17 - (log_n + 1))) for 2n-th root
+//             let psi_n = pow_mod(PSI, 1 << k);
+//             let psi_inv = pow_mod(psi_n, P - 2); // Inverse of ψ_n
+//             let n_inv = pow_mod(n as u64, P - 2); // n^-1 mod P
+
+//             // Precomputes
+//             let mut twiddles = Vec::with_capacity(n);
+//             let mut current = 1;
+//             for i in 0..n {
+//                 twiddles.push(current);
+//                 current = mul_mod(current, psi_n);
+//             }
+//             
+//             let mut twiddles_br = vec![0; n];
+//             for i in 0..n {
+//                 twiddles_br[Self::bit_reverse(i as u32, log_n as u32) as usize] = twiddles[i];
+//             }
+
+//             // Precomputes
+//             let mut inv_twiddles = Vec::with_capacity(n);
+//             current = 1;
+//             for i in 0..n {
+//                 inv_twiddles.push(current);
+//                 current = mul_mod(current, psi_inv);
+//             }
+//             let mut inv_twiddles_br = vec![0; n];
+//             for i in 0..n {
+//                 inv_twiddles_br[Self::bit_reverse(i as u32, log_n as u32) as usize] = inv_twiddles[i];
+//             }
+
+//             twiddle_factors.push(twiddles_br);
+//             inv_twiddle_factors.push(inv_twiddles_br);
+//             inv_n.push(n_inv);
+//         }
+//         GoldilocksTable {
+//             twiddle_factors,
+//             inv_twiddle_factors,
+//             inv_n,
+//         }
+//     }
+//     fn bit_reverse(mut num: u32, bits: u32) -> u32 {
+//         num = (num >> 1) & 0x55555555 | (num & 0x55555555) << 1;
+//         num = (num >> 2) & 0x33333333 | (num & 0x33333333) << 2;
+//         num = (num >> 4) & 0x0f0f0f0f | (num & 0x0f0f0f0f) << 4;
+//         num = (num >> 8) & 0x00ff00ff | (num & 0x00ff00ff) << 8;
+//         num = (num >> 16) | (num << 16);
+//         num >> (32 - bits)
+//     }
+// }
+
+// impl DFT<u64> for GoldilocksTable {
+//     fn forward_inplace(&self, x: &mut [u64]) {
+//         let n = x.len();
+//         let log_n = n.trailing_zeros() as usize;
+//         assert!(log_n >= 11 && log_n <= 16, "n must be between 2^11 and 2^16");
+//         let idx = log_n - 11;
+//         let twiddles = &self.twiddle_factors[idx];
+
+//         let mut t = n;
+//         let mut m = 1;
+//         while m < n {
+//             t >>= 1;
+//             for i in 0..m {
+//                 let j1 = 2 * i * t;
+//                 let s = twiddles[m + i];
+//                 for j in j1..(j1 + t) {
+//                     let u = x[j];
+//                     let v = mul_mod(x[j + t], s);
+//                     x[j] = add_mod(u, v);
+//                     x[j + t] = sub_mod(u, v);
+//                 }
+//             }
+//             m <<= 1;
+//         }
+//     }
+//     fn backward_inplace(&self, x: &mut [u64]) {
+//         let n = x.len();
+//         let log_n = n.trailing_zeros() as usize;
+//         assert!(log_n >= 11 && log_n <= 16, "n must be between 2^11 and 2^16");
+//         let idx = log_n - 11;
+//         let twiddles = &self.inv_twiddle_factors[idx];
+//         let n_inv = self.inv_n[idx];
+
+//         let mut t = 1;
+//         let mut m = n;
+//         while m > 1 {
+//             let h = m >> 1;
+//             let mut j1 = 0;
+//             for i in 0..h {
+//                 let j2 = j1 + t - 1;
+//                 let s = twiddles[h + i];
+//                 for j in j1..=j2 {
+//                     let u = x[j];
+//                     let v = x[j + t];
+//                     x[j] = add_mod(u, v);
+//                     x[j + t] = mul_mod(sub_mod(u, v), s);
+//                 }
+//                 j1 += 2 * t;
+//             }
+//             t <<= 1;
+//             m >>= 1;
+//         }
+//         for i in 0..n {
+//             x[i] = mul_mod(x[i], n_inv);
+//         }
+//     }
+
+//     fn forward_inplace_lazy(&self, _x: &mut [u64]) {
+//         unimplemented!("Lazy forward NTT not implemented");
+//     }
+
+//     fn backward_inplace_lazy(&self, _x: &mut [u64]) {
+//         unimplemented!("Lazy backward NTT not implemented");
+//     }
+// }
+
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use rand::Rng;
+
+//     #[test]
+//     fn test_modular_arithmetic() {
+//         let p = 0xffffffff00000001;
+//         assert_eq!(mul_mod(p - 1, 2), p - 2);
+//         assert_eq!(add_mod(p - 1, 1), 0);
+//         assert_eq!(sub_mod(0, 1), p - 1);
+//     }
+
+//     #[test]
+//     fn test_ntt_correctness() {
+//         let table = GoldilocksTable::new();
+//         let n: usize = 1 << 11;
+//         let mut a: Vec<u64> = (0..n).map(|i| (i as u64) % P).collect();
+//         let b = a.clone();
+//         table.forward_inplace(&mut a);
+//         table.backward_inplace(&mut a);
+//         for i in 0..n {
+//             assert_eq!(a[i], b[i], "NTT round-trip failed at index {}", i);
+//         }
+//     }
+// }
+
+
+// For testing
+
+use crate::dft::DFT;
+use std::vec::Vec;
+
+const P: u64 = 0xffffffff00000001;
+const PSI: u64 = 0xabd0a6e8aa3d8a0e;
+
+fn reduce(x: u128) -> u64 {
+    let x_lo = x as u64;
+    let x_hi = (x >> 64) as u64;
+    let t = x_lo as u128 + ((x_hi as u128) * (0xffffffffu64 as u128));
+    let t_lo = t as u64;
+    let t_hi = (t >> 64) as u64;
+    let mut result = t_lo.wrapping_add(t_hi.wrapping_mul(0xffffffff));
+    if result >= P { result = result.wrapping_sub(P); }
+    if result >= P { result = result.wrapping_sub(P); }
+    result
+}
+
+fn mul_mod(a: u64, b: u64) -> u64 { reduce((a as u128) * (b as u128)) }
+fn add_mod(a: u64, b: u64) -> u64 { if a >= P - b { a.wrapping_sub(P - b) } else { a + b } }
+fn sub_mod(a: u64, b: u64) -> u64 { if a >= b { a - b } else { a.wrapping_add(P - b) } }
+fn pow_mod(a: u64, b: u64) -> u64 {
+    let mut result = 1;
+    let mut base = a;
+    let mut exp = b;
     while exp > 0 {
-        if exp % 2 == 1 {
-            result = (result * a) % modulus;
-        }
-        a = (a * a) % modulus;
+        if exp & 1 == 1 { result = mul_mod(result, base); }
+        base = mul_mod(base, base);
         exp >>= 1;
     }
-    result as u64
+    result
 }
 
-#[inline(always)]
-fn add_mod<const LAZY: bool>(a: u64, b: u64, modulus: u64) -> u64 {
-    if LAZY {
-        a + b
-    } else {
-        ((a as u128 + b as u128) % modulus as u128) as u64
-    }
+pub struct GoldilocksTable {
+    twiddle_factors: Vec<Vec<u64>>,
+    inv_twiddle_factors: Vec<Vec<u64>>,
+    inv_n: Vec<u64>,
+    psi_powers: Vec<Vec<u64>>,
+    inv_psi_powers: Vec<Vec<u64>>,
 }
 
-#[inline(always)]
-fn sub_mod<const LAZY: bool>(a: u64, b: u64, modulus: u64) -> u64 {
-    if LAZY {
-        a.wrapping_sub(b)
-    } else {
-        let a = a as u128;
-        let b = b as u128;
-        let modulus = modulus as u128;
-        ((a + modulus - b) % modulus) as u64
-    }
-}
-
-#[inline(always)]
-fn mul_mod(a: u64, b: u64, modulus: u64) -> u64 {
-    ((a as u128 * b as u128) % modulus as u128) as u64
-}
-
-pub struct Table<O> {
-    q: O,
-    forward_twiddles: Vec<Vec<O>>,
-    inverse_twiddles: Vec<Vec<O>>,
-    inv_n_table: Vec<O>,
-}
-
-impl Table<u64> {
+impl GoldilocksTable {
     pub fn new() -> Self {
-        const Q: u64 = 0x1fffffffffe00001;
-        const PSI: u64 = 0x15eb043c7aa2b01f;  // 2^17-th root of unity
-        
-        let max_log_n = 17;
-        let mut forward_twiddles = Vec::with_capacity(max_log_n);
-        let mut inverse_twiddles = Vec::with_capacity(max_log_n);
+        let mut twiddle_factors = Vec::new();
+        let mut inv_twiddle_factors = Vec::new();
+        let mut inv_n = Vec::new();
+        let mut psi_powers = Vec::new();
+        let mut inv_psi_powers = Vec::new();
+        for log_n in 2..=16 {
+            let n = 1 << log_n;
+            let k = 17 - (log_n + 1);
+            let psi_n = pow_mod(PSI, 1 << k);
+            let psi_inv = pow_mod(psi_n, P - 2);
+            let n_inv = pow_mod(n as u64, P - 2);
 
-        for s in 1..=max_log_n {
-            let m = 1 << s;
-            let m_half = m >> 1;
-            let exponent = (1 << (max_log_n - s)) as u64;
-            
-            let w_m = pow_mod(PSI, exponent, Q);
-            let inv_w_m = pow_mod(w_m, Q - 2, Q);
+            let omega_n = mul_mod(psi_n, psi_n);
+            let omega_inv = pow_mod(omega_n, P - 2);
 
-            let mut fw_twiddles = Vec::with_capacity(m_half);
-            let mut inv_twiddles = Vec::with_capacity(m_half);
-            
-            let mut current_fw = 1u64;
-            let mut current_inv = 1u64;
-            
-            fw_twiddles.push(current_fw);
-            inv_twiddles.push(current_inv);
-            
-            for _ in 1..m_half {
-                current_fw = mul_mod(current_fw, w_m, Q);
-                current_inv = mul_mod(current_inv, inv_w_m, Q);
-                fw_twiddles.push(current_fw);
-                inv_twiddles.push(current_inv);
+            let mut twiddles = Vec::with_capacity(n);
+            let mut current = 1;
+            for _ in 0..n {
+                twiddles.push(current);
+                current = mul_mod(current, omega_n);
             }
-            
-            forward_twiddles.push(fw_twiddles);
-            inverse_twiddles.push(inv_twiddles);
-        }
+            let mut twiddles_br = vec![0; n];
+            for i in 0..n {
+                twiddles_br[Self::bit_reverse(i as u32, log_n as u32) as usize] = twiddles[i];
+            }
 
-        let mut inv_n_table = Vec::with_capacity(max_log_n + 1);
-        for k in 0..=max_log_n {
-            let n = (1u64 << k) as u64;
-            inv_n_table.push(pow_mod(n, Q - 2, Q));
-        }
+            let mut inv_twiddles = Vec::with_capacity(n);
+            current = 1;
+            for _ in 0..n {
+                inv_twiddles.push(current);
+                current = mul_mod(current, omega_inv);
+            }
+            let mut inv_twiddles_br = vec![0; n];
+            for i in 0..n {
+                inv_twiddles_br[Self::bit_reverse(i as u32, log_n as u32) as usize] = inv_twiddles[i];
+            }
 
-        Self {
-            q: Q,
-            forward_twiddles,
-            inverse_twiddles,
-            inv_n_table,
+            let mut psi_pow = Vec::with_capacity(n);
+            let mut inv_psi_pow = Vec::with_capacity(n);
+            current = 1;
+            let mut current_inv = 1;
+            for _ in 0..n {
+                psi_pow.push(current);
+                inv_psi_pow.push(current_inv);
+                current = mul_mod(current, psi_n);
+                current_inv = mul_mod(current_inv, psi_inv);
+            }
+
+            twiddle_factors.push(twiddles_br);
+            inv_twiddle_factors.push(inv_twiddles_br);
+            inv_n.push(n_inv);
+            psi_powers.push(psi_pow);
+            inv_psi_powers.push(inv_psi_pow);
+        }
+        GoldilocksTable {
+            twiddle_factors,
+            inv_twiddle_factors,
+            inv_n,
+            psi_powers,
+            inv_psi_powers,
         }
     }
 
-    pub fn get_q(&self) -> u64 {
-        self.q
-    }
-
-    fn bit_reverse(a: &mut [u64]) {
-        let n = a.len();
-        let mut j = 0;
-        for i in 1..n {
-            let mut bit = n >> 1;
-            while j >= bit {
-                j -= bit;
-                bit >>= 1;
-            }
-            j += bit;
-            if i < j {
-                a.swap(i, j);
-            }
-        }
-    }
-
-    pub fn forward_inplace_core<const LAZY: bool>(&self, a: &mut [u64]) {
-        let q = self.q;
-        let n = a.len();
-        let log_n = n.trailing_zeros() as usize;
-
-        Self::bit_reverse(a);
-
-        for s in 1..=log_n {
-            let m = 1 << s;
-            let m_half = m >> 1;
-            let twiddles = &self.forward_twiddles[s - 1];
-
-            for k in (0..n).step_by(m) {
-                for j in 0..m_half {
-                    let idx1 = k + j;
-                    let idx2 = k + j + m_half;
-                    let t = mul_mod(twiddles[j], a[idx2], q);
-                    let a1 = a[idx1];
-                    a[idx2] = sub_mod::<LAZY>(a1, t, q);
-                    a[idx1] = add_mod::<LAZY>(a1, t, q);
-                }
-            }
-        }
-    }
-
-    pub fn backward_inplace_core<const LAZY: bool>(&self, a: &mut [u64]) {
-        let q = self.q;
-        let n = a.len();
-        let log_n = n.trailing_zeros() as usize;
-
-        Self::bit_reverse(a);
-
-        for s in 1..=log_n {
-            let m = 1 << s;
-            let m_half = m >> 1;
-            let twiddles = &self.inverse_twiddles[s - 1];
-
-            for k in (0..n).step_by(m) {
-                for j in 0..m_half {
-                    let idx1 = k + j;
-                    let idx2 = k + j + m_half;
-                    let t = mul_mod(twiddles[j], a[idx2], q);
-                    let a1 = a[idx1];
-                    a[idx2] = sub_mod::<LAZY>(a1, t, q);
-                    a[idx1] = add_mod::<LAZY>(a1, t, q);
-                }
-            }
-        }
-
-        let inv_n = self.inv_n_table[log_n];
-        for elem in a.iter_mut() {
-            *elem = mul_mod(*elem, inv_n, q);
-        }
+    fn bit_reverse(mut num: u32, bits: u32) -> u32 {
+        num = (num >> 1) & 0x55555555 | (num & 0x55555555) << 1;
+        num = (num >> 2) & 0x33333333 | (num & 0x33333333) << 2;
+        num = (num >> 4) & 0x0f0f0f0f | (num & 0x0f0f0f0f) << 4;
+        num = (num >> 8) & 0x00ff00ff | (num & 0x00ff00ff) << 8;
+        num = (num >> 16) | (num << 16);
+        num >> (32 - bits)
     }
 }
 
-impl DFT<u64> for Table<u64> {
-    fn forward_inplace(&self, a: &mut [u64]) {
-        self.forward_inplace_core::<false>(a)
+impl DFT<u64> for GoldilocksTable {
+    fn forward_inplace(&self, x: &mut [u64]) {
+        let n = x.len();
+        let log_n = n.trailing_zeros() as usize;
+        assert!(log_n >= 2 && log_n <= 16, "n must be between 2^2 and 2^16 for testing");
+        let idx = log_n - 2;
+        let twiddles = &self.twiddle_factors[idx];
+        let psi_pow = &self.psi_powers[idx];
+
+        for j in 0..n {
+            x[j] = mul_mod(x[j], psi_pow[j]);
+        }
+
+        let mut t = n;
+        let mut m = 1;
+        while m < n {
+            t >>= 1;
+            for i in 0..m {
+                let j1 = 2 * i * t;
+                let s = twiddles[m + i];
+                for j in j1..(j1 + t) {
+                    let u = x[j];
+                    let v = mul_mod(x[j + t], s);
+                    x[j] = add_mod(u, v);
+                    x[j + t] = sub_mod(u, v);
+                }
+            }
+            m <<= 1;
+        }
     }
 
-    fn forward_inplace_lazy(&self, a: &mut [u64]) {
-        self.forward_inplace_core::<true>(a)
+    fn backward_inplace(&self, x: &mut [u64]) {
+        let n = x.len();
+        let log_n = n.trailing_zeros() as usize;
+        assert!(log_n >= 2 && log_n <= 16, "n must be between 2^2 and 2^16 for testing");
+        let idx = log_n - 2;
+        let twiddles = &self.inv_twiddle_factors[idx]; // Fixed: Use inverse twiddles
+        let n_inv = self.inv_n[idx];
+        let inv_psi_pow = &self.inv_psi_powers[idx];
+
+        let mut t = 1;
+        let mut m = n;
+        while m > 1 {
+            let h = m >> 1;
+            let mut j1 = 0;
+            for i in 0..h {
+                let j2 = j1 + t - 1;
+                let s = twiddles[h + i];
+                for j in j1..=j2 {
+                    let u = x[j];
+                    let v = x[j + t];
+                    x[j] = add_mod(u, v);
+                    x[j + t] = mul_mod(sub_mod(u, v), s);
+                }
+                j1 += 2 * t;
+            }
+            t <<= 1;
+            m >>= 1;
+        }
+
+        for i in 0..n {
+            x[i] = mul_mod(x[i], mul_mod(n_inv, inv_psi_pow[i]));
+        }
     }
 
-    fn backward_inplace(&self, a: &mut [u64]) {
-        self.backward_inplace_core::<false>(a)
-    }
-
-    fn backward_inplace_lazy(&self, a: &mut [u64]) {
-        self.backward_inplace_core::<true>(a)
-    }
+    fn forward_inplace_lazy(&self, _x: &mut [u64]) { unimplemented!("Lazy forward NTT not implemented"); }
+    fn backward_inplace_lazy(&self, _x: &mut [u64]) { unimplemented!("Lazy backward NTT not implemented"); }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::Rng;
 
     #[test]
-    fn test_ntt_roundtrip() {
-        let ntt_table = Table::<u64>::new();
-        let q = ntt_table.q;
+    fn test_modular_arithmetic() {
+        let p = 0xffffffff00000001;
+        assert_eq!(mul_mod(p - 1, 2), p - 2);
+        assert_eq!(add_mod(p - 1, 1), 0);
+        assert_eq!(sub_mod(0, 1), p - 1);
+    }
 
-        let mut a = vec![1, 2, 3, 4, 5, 6, 7, 8];
-        let original = a.clone();
-
-        ntt_table.forward_inplace(&mut a);
-        ntt_table.backward_inplace(&mut a);
-
-        for (i, &val) in a.iter().enumerate() {
-            assert_eq!(val, original[i] % q);
-        }
+    #[test]
+    fn test_small_ntt() {
+        let table = GoldilocksTable::new();
+        let n: usize = 4;
+        let mut a: Vec<u64> = (0..n).map(|i| i as u64).collect();
+        let b = a.clone();
+        println!("Input: {:?}", a);
+        table.forward_inplace(&mut a);
+        println!("After forward: {:?}", a);
+        table.backward_inplace(&mut a);
+        println!("After backward: {:?}", a);
+        assert_eq!(a, b);
     }
 
     #[test]
     fn test_ntt_correctness() {
-        let ntt_table = Table::<u64>::new();
-        let q = ntt_table.q;
-
-        // Test 2-point NTT
-        let mut a = vec![1, 0];
-        ntt_table.forward_inplace(&mut a);
-        assert_eq!(a[0], 1);
-        assert_eq!(a[1], 1);
-
-        ntt_table.backward_inplace(&mut a);
-        assert_eq!(a[0], 1);
-        assert_eq!(a[1], 0);
-
-        // Test 2-point NTT with non-zero inputs
-        let mut a = vec![1, 1];
-        ntt_table.forward_inplace(&mut a);
-        assert_eq!(a[0], add_mod::<false>(1, 1, q));
-        assert_eq!(a[1], sub_mod::<false>(1, 1, q));
-    }
-
-    #[test]
-    fn test_large_ntt() {
-        let ntt_table = Table::<u64>::new();
-        let q = ntt_table.q;
-        let n = 1 << 16;
-        
-        let mut a: Vec<u64> = (0..n).map(|x| x % q).collect();
-        let original = a.clone();
-        
-        ntt_table.forward_inplace(&mut a);
-        ntt_table.backward_inplace(&mut a);
-        
-        for (i, &val) in a.iter().enumerate() {
-            assert_eq!(val, original[i], "Mismatch at index {}", i);
+        let table = GoldilocksTable::new();
+        let n: usize = 1 << 11;
+        let mut a: Vec<u64> = (0..n).map(|i| (i as u64) % P).collect();
+        let b = a.clone();
+        table.forward_inplace(&mut a);
+        table.backward_inplace(&mut a);
+        for i in 0..n {
+            assert_eq!(a[i], b[i], "NTT round-trip failed at index {}", i);
         }
     }
 }
