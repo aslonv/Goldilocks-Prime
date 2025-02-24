@@ -1,6 +1,6 @@
 ## NTT Algorithms
 
--Forward NTT: Uses a Cooley-Tukey butterfly taking input in natural order and outputting in bit-reversed order
+- Forward NTT: Uses a Cooley-Tukey butterfly taking input in natural order and outputting in bit-reversed order
 
 - Backward NTT: Uses a Gentleman-Sande butterfly taking input in bit-reversed order and outputting in natural order, with scaling by n^-1 mod p
 
@@ -13,6 +13,6 @@
 
 - Efficient Reduction: Reduces 128-bit products modulo p in a single pass
 
--In-Place Operations: Both forward and backward NTTs modify the input array directly
+- In-Place Operations: Both forward and backward NTTs modify the input array directly
 
 - No Bit-Reversal Step: The forward-backward pair avoids explicit bit-reversal
